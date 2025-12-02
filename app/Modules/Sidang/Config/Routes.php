@@ -59,12 +59,14 @@ $routes->group('api/sidang', ['filter' => 'sidang_auth', 'namespace' => 'App\\Mo
 
 // ====================================================================
 // 3. ⬇️ RUTE GENERATE QR CODE (URL REDIRECT) ⬇️
-// Ini adalah rute web yang dipanggil oleh tombol QR di setting_otp.php
 // ====================================================================
 $routes->group('setting/otp-sidang', ['filter' => 'auth_session', 'namespace' => 'App\\Modules\\Sidang\\Controllers'], function($routes) use ($adminSetupController){
     
+    // 🟢 PERBAIKAN: Rute Index untuk menu /setting/otp-sidang
+    // Ini yang akan memanggil AdminSetupController::setupIndex()
+    $routes->get('/', "{$adminSetupController}::setupIndex"); 
+    
     // RUTE GENERATE QR CODE
-    // URL: /setting/otp-sidang/generate/(:num)
     $routes->get('generate/(:num)', "{$adminSetupController}::generateQr/$1");
     
 });

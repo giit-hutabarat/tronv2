@@ -23,7 +23,37 @@ $routes->group('setting', ['filter' => 'auth_session', 'namespace' => 'App\\Modu
     // URL: /setting/otp-sidang
     //$routes->add('/otp-sidang', 'Setting::otpSetup');    
 });
+// ====================================================================
+// 🟢 KELOMPOK BARU: WEB ROUTE (HALAMAN ADMIN) - MODUL SIDANG OTP
+// ====================================================================
+// Gunakan group dengan prefix 'setting' tapi diarahkan ke Controller Sidang
+$routes->group('setting/otp-sidang', ['filter' => 'auth_session'], function($routes) use ($adminSetupController){
+    
+    // 1. Rute Index URL: /setting/otp-sidang (URL UTAMA MENU)
+    // Diarahkan ke AdminSetupController::setupIndex()
+    $routes->get('/', "{$adminSetupController}::setupIndex"); 
+    
+    // 2. Rute GENERATE QR URL: /setting/otp-sidang/generate/(:num)
+    $routes->get('generate/(:num)', "{$adminSetupController}::generateQr/$1");
+    
+});
+// ====================================================================
+// 2. KELOMPOK API ROUTE - MODUL SIDANG OTP
+// ====================================================================
+// Ini harus ada karena View 'setting_otp.php' memanggil API
+$routes->group('api/sidang/admins', ['filter' => 'auth_session'], function($routes) use ($adminSetupController){
+    
+    // 1. Load Data (AJAX GET)
+    // Diarahkan ke Controller yang menangani API (misal: ApiAdminSetup.php, jika ada)
+    // KARENA KAMU TIDAK PUNYA API CONTROLLER, KITA ARAHKAN KE CONTROLLER UTAMA SEMENTARA
+    $routes->get('/', "{$adminSetupController}::getAdminsApi"); 
 
+    // 2. Save NIP (AJAX POST)
+    $routes->post('save', "{$adminSetupController}::saveNip");
+
+    // 3. Toggle Status (AJAX PUT)
+    $routes->put('toggle/(:num)', "{$adminSetupController}::set2fa/$1"); 
+});
 // ====================================================================
 // KELOMPOK 2: ADMIN API ROUTE (CRUD & Update Config)
 // ... (API routes lainnya dari Modul Setting) ...

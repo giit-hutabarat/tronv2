@@ -21,7 +21,7 @@ $routes->group('setting', ['filter' => 'auth_session', 'namespace' => 'App\\Modu
 	
     // RUTE MENU OTP: Ini adalah rute yang dipanggil dari Dashboard
     // URL: /setting/otp-sidang
-    $routes->add('otp-sidang', 'Setting::otpSetup');    
+    //$routes->add('/otp-sidang', 'Setting::otpSetup');    
 });
 
 // ====================================================================

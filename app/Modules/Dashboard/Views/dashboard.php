@@ -124,11 +124,52 @@
     </v-container>
 </template>
 <?php $this->endSection("content") ?>
-
 <?php $this->section("js") ?>
 <script>
+    // 💥 KOREKSI UTAMA: WAJIB DEFINISIKAN window.dataVue DENGAN PROPERTI GLOBAL
+    // Kita gunakan Object.assign() untuk keamanan (walaupun di sini kita mendefinisikan pertama kali, ini menjaga kompatibilitas)
+    window.dataVue = window.dataVue || {}; 
+    window.methodsVue = window.methodsVue || {};
+    window.computedVue = window.computedVue || {}; // <--- TAMBAHKAN BARIS INI!
+    
+    // Gabungkan data default yang dibutuhkan Layout
+    Object.assign(window.dataVue, {
+        // PROPERTI YANG HILANG DAN DIBUTUHKAN BACKEND.PHP:
+        rightMenu: false,
+        toggleMini: false,
+        
+        // PROPERTI LAIN YANG DIBUTUHKAN BACKEND.PHP (Ambil dari backend.php data default lo):
+        sidebarMenu: true,
+        dark: false,
+        group: null,
+        search: '',
+        pencarian: '', 
+        loading: false,
+        loading2: false,
+        loading3: false,
+        valid: true,
+        // Tambahkan semua properti default dari backend.php yang dipakai di template
+        
+        // DATA SPESIFIK DASHBOARD:
+        // Jika ada data spesifik dashboard (misalnya dashboardStats: []), tambahkan di sini.
+    });
+
+    // 💥 KOREKSI METHODS: Pastikan tidak menimpa methods global
+    window.methodsVue = window.methodsVue || {};
+    // Di dashboard tidak ada methods spesifik, jadi tidak perlu Object.assign(window.methodsVue, {...})
+
     window.createdVue = function() {
         console.log("Dashboard View: Dashboard Loaded");
+        // Di sini lo bisa panggil API untuk memuat data statistik dashboard
+    };
+    
+    // Opsional: Atasi error null style di mountedVue
+    window.mountedVue = function() {
+        // Logic mounted Vue global di backend.php sudah mencoba menyembunyikan loading,
+        // tapi jika lo punya logic mounted sendiri, tambahkan di sini.
+        // Hapus kode yang menyebabkan error style:
+        // document.getElementById('loading-template').style.display = 'none';
+        // Biarkan mountedVue default di backend.php yang handle.
     };
 </script>
 <?php $this->endSection("js") ?>

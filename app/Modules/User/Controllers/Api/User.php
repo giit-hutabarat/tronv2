@@ -16,32 +16,23 @@ class User extends BaseControllerApi
 
     public function __construct()
     {
-        // PENTING: Pengecekan Login Status (isLoggedIn) SUDAH DITANGANI oleh Filter 'auth_session' di Routes.
-        
         // 🔒 Otorisasi Level Admin (Hanya Super Admin yang bisa manipulasi user)
         if (session()->get('user_type') != 1) {
-            // Jika bukan Super Admin (user_type 1), kembalikan 403 Forbidden.
-            // Kita menggunakan response helper CI4 untuk API
             $response = service('response');
             $response->setStatusCode(ResponseInterface::HTTP_FORBIDDEN)
                      ->setJSON(['status' => false, 'message' => 'Akses Ditolak. Anda bukan Super Admin.']);
             $response->send();
             exit(); 
         }
-
-        // Pastikan konstruktor BaseControllerApi dipanggil jika ada inisialisasi di sana
-        // parent::__construct(); 
     }
 
     public function index()
     {
-        // Menggunakan respond() dari ResourceController/BaseControllerApi
         return $this->respond(["status" => true, "message" => lang('App.getSuccess'), "data" => $this->model->findAll()], 200);
     }
 
     public function create()
     {
-        // ... (Logic Validasi dan Input) ...
         $rules = [
             'email' => [ 'rules'  => 'required', 'errors' => [] ],
             'fullname' => [ 'rules'  => 'required', 'errors' => [] ],
@@ -49,7 +40,6 @@ class User extends BaseControllerApi
             'password' => [ 'rules'  => 'required', 'errors' => [] ],
         ];
 
-        // Mengambil input melalui getRequestInput() dari BaseControllerApi
         $input = $this->getRequestInput();
 
         if (!$this->validate($rules)) {
@@ -83,7 +73,6 @@ class User extends BaseControllerApi
     
     public function update($id = NULL)
     {
-        // ... (Logic Validasi dan Input) ...
         $rules = [
             'email' => [ 'rules'  => 'required', 'errors' => [] ],
             'fullname' => [ 'rules'  => 'required', 'errors' => [] ],
@@ -118,7 +107,6 @@ class User extends BaseControllerApi
 
     public function delete($id = null)
     {
-        // ... (Logic Delete) ...
         $hapus = $this->model->find($id);
         if ($hapus) {
             $this->model->delete($id);
@@ -140,7 +128,6 @@ class User extends BaseControllerApi
 
     public function setActive($id = NULL)
     {
-        // ... (Logic setActive) ...
         $input = $this->getRequestInput();
         $data = [ 'is_active' => $input['is_active'] ];
 
@@ -163,7 +150,6 @@ class User extends BaseControllerApi
 
     public function setRole($id = NULL)
     {
-        // ... (Logic setRole) ...
         $input = $this->getRequestInput();
         $data = [ 'user_type' => $input['user_type'] ];
 
@@ -186,9 +172,9 @@ class User extends BaseControllerApi
 
     public function changePassword()
     {
-        // ... (Logic changePassword) ...
         $rules = [
-            'email' => 'required',
+            // 💥 KOREKSI: Tambahkan ID pengguna di rules jika lo membutuhkannya untuk validasi di sini
+            'id' => 'required', 
             'password' => 'required|min_length[8]|max_length[255]',
             'verify' => 'required|matches[password]'
         ];
@@ -199,31 +185,58 @@ class User extends BaseControllerApi
             return $this->getResponse(
                 [
                     'status' => false,
-                    'message' => 'Error',
+                    'message' => 'Validasi Gagal', // Ubah pesan agar lebih jelas
                     'data' => $this->validator->getErrors()
                 ],
                 ResponseInterface::HTTP_OK
             );
         }
-
-        $user = $this->model->where(['email' => $input['email']])->first();
-        $user_id = $user['id_login']; 
-		$user_data = [
-			'password' => $input['password'],
-		];
-        if ($this->model->update($user_id, $user_data)) {
-            return $this->getResponse(
+        
+        // 💥 KOREKSI KRITIS 1: Cari pengguna berdasarkan ID yang dikirim dari Frontend
+        $user = $this->model->find($input['id']);
+        
+        if (!$user) {
+             return $this->getResponse(
                 [
-                    'status' => true,
-                    'message' => lang('App.passChanged'),
+                    'status' => false,
+                    'message' => 'Pengguna tidak ditemukan berdasarkan ID.',
                     'data' => []
                 ], ResponseInterface::HTTP_OK
             );
-        } else {
-            return $this->getResponse(
+        }
+
+        // 💥 KOREKSI KRITIS 2: Gunakan Primary Key 'id' untuk update
+        $user_id = $input['id']; 
+		$user_data = [
+			'password' => $input['password'],
+		];
+        
+        try {
+            if ($this->model->update($user_id, $user_data)) {
+                return $this->getResponse(
+                    [
+                        'status' => true,
+                        'message' => lang('App.passChanged'),
+                        'data' => []
+                    ], ResponseInterface::HTTP_OK
+                );
+            } else {
+                // Ini menangani kasus update gagal tanpa error fatal (misalnya data sama)
+                return $this->getResponse(
+                    [
+                        'status' => false,
+                        'message' => 'Update gagal, pastikan password baru.',
+                        'data' => []
+                    ], ResponseInterface::HTTP_OK
+                );
+            }
+        } catch (Exception $e) {
+             // 💥 Tambahkan logging untuk menangkap error DB
+             log_message('error', 'Change password failed: ' . $e->getMessage());
+             return $this->getResponse(
                 [
                     'status' => false,
-                    'message' => lang('App.regFailed'),
+                    'message' => 'Gagal mengubah password karena error sistem. Cek log.',
                     'data' => []
                 ], ResponseInterface::HTTP_OK
             );

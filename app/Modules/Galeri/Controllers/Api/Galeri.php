@@ -173,28 +173,47 @@ class Galeri extends BaseControllerApi
     }
 
     public function delete($id = null)
-    {
-        $hapus = $this->model->find($id);
-        $image = $hapus['image_url'];
-        if ($hapus) {
-            unlink($image);
-            $this->model->delete($id);
-            $response = [
-                'status' => true,
-                'message' => lang('App.delSuccess'),
-                'data' => [],
-            ];
-            return $this->respond($response, 200);
-        } else {
-            $response = [
-                'status' => false,
-                'message' => lang('App.delFailed'),
-                'data' => [],
-            ];
-            return $this->respond($response, 200);
-        }
-    }
+{
+    $hapus = $this->model->find($id);
 
+    // --- PERBAIKAN: Cek apakah data ditemukan ---
+    if (!$hapus) {
+        $response = [
+            'status' => false,
+            'message' => lang('App.delFailed') . ' (Data tidak ditemukan)',
+            'data' => [],
+        ];
+        return $this->respond($response, 200);
+    }
+    // --- AKHIR PERBAIKAN ---
+
+    $image = $hapus['image_url'];
+
+    // --- PERBAIKAN: Cek apakah file ada sebelum unlink() ---
+    if (!empty($image) && file_exists($image)) {
+        unlink($image);
+    }
+    // --- AKHIR PERBAIKAN ---
+
+    // Hapus data dari database
+    $deleteResult = $this->model->delete($id);
+    
+    if ($deleteResult) {
+        $response = [
+            'status' => true,
+            'message' => lang('App.delSuccess'),
+            'data' => [],
+        ];
+        return $this->respond($response, 200);
+    } else {
+         $response = [
+            'status' => false,
+            'message' => lang('App.delFailed') . ' (Gagal menghapus dari database)',
+            'data' => [],
+        ];
+        return $this->respond($response, 200);
+    }
+}
     public function upload()
     {
         //$id = $this->request->getVar('id');

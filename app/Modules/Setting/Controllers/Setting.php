@@ -34,6 +34,21 @@ class Setting extends BaseController
 		]);
 	}
 
+	public function otpSetup()
+    {
+        // Panggil Model untuk mendapatkan daftar NIP yang sudah di-setup
+        // Anda perlu membuat Model ini jika belum ada.
+        $sidangAdminModel = new \App\Modules\Sidang\Models\SidangAdminModel(); 
+        
+        $data = [
+            'title' => 'Setup NIP Pegawai (Akses Sidang)',
+            'list_admins' => $sidangAdminModel->findAll(), // Asumsi mengambil semua NIP
+        ];
+        
+        // Render view yang sudah Anda pindahkan
+        return view('\App\Modules\Setting\Views\setting_otp', $data); 
+    }
+
 }
 
 

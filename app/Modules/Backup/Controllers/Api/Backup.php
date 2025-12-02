@@ -8,7 +8,7 @@ Dibuat oleh: Hari Wicaksono, S.Kom
 */
 
 use App\Controllers\BaseControllerApi;
-use App\Modules\Backup\Models\BackupModel;
+use App\Modules\Backup\Models\BackupModel; // Pastikan ini di-use
 use CodeIgniter\HTTP\ResponseInterface;
 use Y0lk\SQLDumper\SQLDumper;
 use Config\Database;
@@ -16,7 +16,7 @@ use Config\Database;
 class Backup extends BaseControllerApi
 {
     protected $format       = 'json';
-    protected $modelName    = BackupModel::class;
+    protected $modelName    = BackupModel::class; // FIX: Menggunakan BackupModel yang benar
 
     public function __construct()
     {
@@ -32,122 +32,99 @@ class Backup extends BaseControllerApi
 
     public function index()
     {
+        // FIX: Sekarang akan memanggil BackupModel->findAll()
         return $this->respond(['status' => true, 'message' => lang('App.getSuccess'), 'data' => $this->model->findAll()], 200);
     }
 
     public function create()
     {
-        // 🚨 PERBAIKAN KRITIS UNTUK SQL DUMPER (FIX: Access denied for user '')
-        
         // 1. Dapatkan objek konfigurasi mentah (Config\Database)
         $dbConfigObj = config('Database'); 
-        
-        // 2. Akses properti default koneksi
         $db = $dbConfigObj->default;
         
-        // 3. Simpan kredensial ke array (menggunakan array konfigurasi langsung, bukan properti koneksi)
+        // 2. Kredensial dipaksa menggunakan IP untuk menghindari koneksi socket (localhost)
         $db_config = [
-            'hostname' => $db['hostname'],
-            'username' => $db['username'],
-            'password' => $db['password'],
+            'hostname' => '127.0.0.1', // 💥 FIX HOST FINAL: Dipaksa menggunakan IP
+            'username' => 'root',      // 💥 FIX USER
+            'password' => '',          // 💥 FIX PASS: String Kosong
             'database' => $db['database'],
             'port'     => $db['port'] ?? 3306,
         ];
         
-        // 🚨 DEBUGGING LOG BARU 🚨
-        log_message('critical', 'DEBUG: DB Hostname: ' . $db_config['hostname']);
-        log_message('critical', 'DEBUG: DB Username: ' . $db_config['username']);
-        
+        // 💥 DEBUGGING: Log kredensial final
+        log_message('critical', 'FINAL DB CONFIG USED: Host: ' . $db_config['hostname'] . ' | User: ' . $db_config['username'] . ' | DB: ' . $db_config['database']);
+
+
         $tanggal = date('Ymd-His');
         
-        // Gunakan WRITEPATH untuk directory yang aman (memiliki izin tulis/write)
+        // Gunakan WRITEPATH untuk directory yang aman
         $backupDir = WRITEPATH . 'backups' . DIRECTORY_SEPARATOR; 
         
-        // Pastikan folder backups ada
-        if (! is_dir($backupDir)) {
-            mkdir($backupDir, 0777, true);
+        // PERBAIKAN FILE PERMISSION CHECK
+        if (! is_dir($backupDir) && !mkdir($backupDir, 0777, true)) {
+            log_message('critical', 'Gagal membuat direktori backup: ' . $backupDir);
+            return $this->respond(['status' => false, 'message' => 'Gagal membuat folder backup. Periksa izin folder writable!'], 500);
+        }
+        if (! is_writable($backupDir)) {
+             log_message('critical', 'Izin Tulis Ditolak di: ' . $backupDir);
+             return $this->respond(['status' => false, 'message' => 'Gagal membuat backup. Folder writable/backups tidak memiliki izin tulis (777)!'], 500);
         }
 
         $namaFile = 'backup-' . $tanggal . '.sql';
-        $pathFile = 'backups/'; // Path relatif untuk disimpan di DB
+        $pathFile = 'backups/';
 
         try {
-            // 4. Inisialisasi SQL Dumper dengan Argumen Posisi (FIX: array given error)
+            // 3. Inisialisasi SQL Dumper
             $dumper = new SQLDumper(
                 $db_config['hostname'],
                 $db_config['username'],
                 $db_config['password'],
-                $db_config['database']
+                $db_config['database'],
+                $db_config['port']
             );
 
-            // 5. Konfigurasi Dump
-            $dumper->allTables()
-                ->withData(true)
-                ->withDrop(true);
+            $dumper->allTables()->withData(true)->withDrop(true);
+            $dumper->save($backupDir . $namaFile); 
 
-            // 6. Simpan File ke Disk (Menggunakan path absolut)
-            $dumper->save($backupDir . $namaFile); // Simpan ke writable/backups/
-
-            // 7. Log ke Tabel Database
+            // 4. Log ke Tabel Database
             $data = [
                 'file_name' => $namaFile,
-                'file_path' => $pathFile . $namaFile, // Simpan path relatif untuk di-download
+                'file_path' => $pathFile . $namaFile,
                 'created_at' => date('Y-m-d H:i:s')
             ];
             $this->model->save($data);
 
-            $response = [
-                'status' => true,
-                'message' => lang('App.saveSuccess'),
-                'data' => [],
-            ];
-            return $this->respond($response, 200);
+            return $this->respond(['status' => true, 'message' => lang('App.saveSuccess'), 'data' => []], 200);
 
         } catch (\Exception $e) {
-            // Log error ke file log CI4 untuk debugging
             log_message('critical', 'Gagal membuat backup. SQL Dumper Error: ' . $e->getMessage());
             
-            $response = [
+            // Mengembalikan pesan Error MySQL yang terekspos
+            return $this->respond([
                 'status' => false,
                 'message' => 'Gagal membuat backup. Error: ' . $e->getMessage(),
-                'data' => [],
-            ];
-            // Kembalikan status 500 agar Axios tahu ada masalah server
-            return $this->respond($response, 500); 
+                'data' => []
+            ], 500); 
         }
     }
     public function delete($id = null)
     {
         $hapus = $this->model->find($id);
         if ($hapus) {
-            $filepath = WRITEPATH . $hapus['file_path']; // Gunakan WRITEPATH saat menghapus
+            $filepath = WRITEPATH . $hapus['file_path'];
             
 			unlink($filepath);
             $this->model->delete($id);
-            $response = [
-                'status' => true,
-                'message' => lang('App.delSuccess'),
-                'data' => [],
-            ];
-            return $this->respond($response, 200);
+            return $this->respond(['status' => true, 'message' => lang('App.delSuccess'), 'data' => []], 200);
         } else {
-           $response = [
-                'status' => false,
-                'message' => lang('App.delFailed'),
-                'data' => [],
-            ];
-            return $this->respond($response, 200);
+            return $this->respond(['status' => false, 'message' => lang('App.delFailed'), 'data' => []], 200);
         }
     }
 
     public function download()
     {
-        // Endpoint ini harusnya mengembalikan file, tapi karena API, 
-        // kita mengembalikan URL file yang akan diakses oleh frontend.
-        
-        // Menggunakan getRequestInput() dari BaseControllerApi untuk konsistensi
         $input = $this->getRequestInput();
-        $id = $input['id'] ?? $this->request->getPost('id'); // Ambil dari input atau POST
+        $id = $input['id'] ?? $this->request->getPost('id');
 
         $backup = $this->model->find($id);
         
@@ -157,14 +134,8 @@ class Backup extends BaseControllerApi
 
         $name = $backup['file_name'];
         $path = $backup['file_path'];
-        // 🔑 Perbaikan path download: base_url() + path relatif
         $filePath = base_url($path); 
 
-        $response = [
-            'status' => true,
-            'message' => lang('App.getSuccess'),
-            'data' => ['filename' => $name, 'url' => $filePath],
-        ];
-        return $this->respond($response, 200);
+        return $this->respond(['status' => true, 'message' => lang('App.getSuccess'), 'data' => ['filename' => $name, 'url' => $filePath]], 200);
     }
 }
